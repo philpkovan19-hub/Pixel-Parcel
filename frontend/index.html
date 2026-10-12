@@ -388,6 +388,70 @@
     .hero h1 { font-size: 28px; }
     .stats { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ===== BOT Chain ecosystem footer (KPI 5) — brushed-chrome about box ===== */
+  .bc-foot { max-width: 920px; margin: 54px auto 46px; padding: 0 18px; }
+  .bc-foot-box {
+    border: 1px solid var(--frame); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 6px 18px rgba(26,37,48,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
+    background: var(--panel);
+  }
+  .bc-foot .bc-title {
+    background: var(--chrome); border-bottom: 1px solid var(--frame);
+    padding: 7px 14px; display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; color: #2b3540;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.7); letter-spacing: 0.04em;
+  }
+  .bc-foot .bc-lights { display: flex; gap: 5px; }
+  .bc-foot .bc-lights i {
+    width: 10px; height: 10px; border-radius: 50%; display: block;
+    border: 1px solid rgba(0,0,0,0.28);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.75);
+  }
+  .bc-foot .bc-body {
+    padding: 22px 20px 18px; text-align: center;
+    background: linear-gradient(180deg, #ffffff 0%, var(--panel) 100%);
+  }
+  .bc-foot .bc-gel {
+    width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f2f6fa 48%, #dde6ef 52%, #ffffff 100%);
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 3px 8px rgba(26,37,48,0.22), inset 0 1px 0 rgba(255,255,255,0.95);
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .bc-foot .bc-gel::after {
+    content: ''; position: absolute; inset: 2px 2px 54% 2px; border-radius: 12px 12px 18px 18px;
+    background: linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.15));
+    pointer-events: none;
+  }
+  .bc-foot .bc-gel svg { width: 19px; height: 30px; display: block; position: relative; z-index: 1; }
+  .bc-foot .bc-word {
+    font-size: 21px; font-weight: 700; color: var(--text);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.9); margin-bottom: 3px;
+  }
+  .bc-foot .bc-word em { font-style: normal; color: var(--aqua-deep); }
+  .bc-foot .bc-sub {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.14em;
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+  .bc-foot .bc-links { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .bc-foot .bc-links a {
+    font-size: 12px; font-weight: 500; color: var(--aqua-deep); text-decoration: none;
+    padding: 7px 16px; border-radius: 999px; border: 1px solid var(--panel-line);
+    background: linear-gradient(180deg, #ffffff, #e3ebf4);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(26,37,48,0.12);
+    transition: background .15s, color .15s;
+  }
+  .bc-foot .bc-links a:hover {
+    background: linear-gradient(180deg, #5cb6ff, var(--aqua)); color: #fff;
+    border-color: var(--aqua-deep);
+  }
+  .bc-foot .bc-strip {
+    border-top: 1px solid var(--panel-line);
+    background: repeating-linear-gradient(180deg, #eef4fb 0 3px, #e3ebf4 3px 6px);
+    padding: 9px 14px; font-size: 10px; color: var(--muted); letter-spacing: 0.08em;
+  }
+  .bc-foot .bc-strip b { color: var(--text); }
 </style>
 </head>
 <body>
@@ -509,7 +573,7 @@
 <div id="toasts" class="toasts"></div>
 
 <footer>
-  PixelParcel &middot; BOT Chain &middot; <span id="foot-net">Testnet 968</span>
+  PixelParcel &middot; BOT Chain &middot; <span id="foot-net">Mainnet 677</span>
 </footer>
 
 <script>
@@ -518,8 +582,8 @@
 // ==============================================================
 // CONFIG
 // ==============================================================
-const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
-const USE_MAINNET = false;
+const CONTRACT_ADDRESS = "0xF2d965036eF06D31D00E1C86Dfa32561a297DD60"; // BOT Chain mainnet 677
+const USE_MAINNET = true;
 
 const NETWORKS = {
   testnet: {
@@ -527,14 +591,14 @@ const NETWORKS = {
     chainName: "BOT Chain Testnet",
     rpcUrls: ["https://rpc.bohr.life"],
     nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-    blockExplorerUrls: [],
+    blockExplorerUrls: ["https://scan.bohr.life"],
   },
   mainnet: {
     chainIdHex: "0x2A5", chainIdDec: 677,
     chainName: "BOT Chain",
     rpcUrls: ["https://rpc.botchain.ai"],
     nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-    blockExplorerUrls: [],
+    blockExplorerUrls: ["https://scan.botchain.ai"],
   },
 };
 const ACTIVE_NET = USE_MAINNET ? NETWORKS.mainnet : NETWORKS.testnet;
@@ -978,5 +1042,33 @@ async function init() {
 
 init();
 </script>
+
+<!-- ===== BOT Chain ecosystem footer (KPI 5) ===== -->
+<footer class="bc-foot">
+  <div class="bc-foot-box">
+    <div class="bc-title">
+      <span class="bc-lights" aria-hidden="true">
+        <i style="background:linear-gradient(180deg,#ff8f85,#e0463a)"></i>
+        <i style="background:linear-gradient(180deg,#ffd978,#e8a825)"></i>
+        <i style="background:linear-gradient(180deg,#8fe08a,#36a62e)"></i>
+      </span>
+      About this network
+    </div>
+    <div class="bc-body">
+      <div class="bc-gel" aria-hidden="true">
+        <svg viewBox="0 0 63.63 100" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#00A67E" d="M31.67 99.95 L0 82.48 L0.11 63.74 L47.01 90.60 L47.01 73.19 L15.98 55.32 L15.95 36.49 L46.92 53.57 L47.39 36.82 L15.96 17.81 L16.26 0 L63.06 27.02 L62.82 46.20 L47.86 54.67 L62.85 63.00 L63.62 81.42 Z"/>
+        </svg>
+      </div>
+      <div class="bc-word"><em>BOT</em> Chain</div>
+      <div class="bc-links">
+        <a href="https://botchain.ai" target="_blank" rel="noopener noreferrer">botchain.ai</a>
+        <a href="https://scan.botchain.ai" target="_blank" rel="noopener noreferrer">Explorer</a>
+        <a href="https://scan.botchain.ai/address/0xF2d965036eF06D31D00E1C86Dfa32561a297DD60" target="_blank" rel="noopener noreferrer">Contract</a>
+      </div>
+    </div>
+    <div class="bc-strip">&copy; 2026 <b>BOT Chain</b> &mdash; EVM-compatible Layer 1 &middot; Mainnet &middot; Chain ID <b>677</b></div>
+  </div>
+</footer>
 </body>
 </html>
