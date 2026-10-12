@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PixelParcel — Own a piece of the wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --chrome: linear-gradient(#f7f7f7, #d0d3da 45%, #a8adb5 55%, #d0d3da 80%, #f7f7f7);
+    --chrome-dark: linear-gradient(#dcdfe4, #a1a6ae 50%, #7c828b 55%, #a1a6ae 90%, #dcdfe4);
+    --glass: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.15) 50%, transparent 51%, rgba(255,255,255,0.08));
+    --aqua: #0080ff;
+    --aqua-deep: #004a99;
+    --yellow: #ffcc33;
+    --bg1: #a3d3f3;
+    --bg2: #e7f4fc;
+    --frame: #6a7280;
+    --panel: #eef4fb;
+    --panel-line: #b7c2d0;
+    --text: #1a2530;
+    --muted: #556170;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: "Rubik", "Trebuchet MS", "Verdana", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(ellipse at top, rgba(255,255,255,0.5), transparent 60%),
+      linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 55%, #ffffff 100%);
+    min-height: 100vh;
+  }
+  a { color: var(--aqua-deep); }
+  /* ---------- Chrome primitives ---------- */
+  .chrome-bar {
+    background: var(--chrome);
+    border: 1px solid var(--frame);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 4px rgba(30,50,80,0.15);
+  }
+  .chrome-window {
+    background: var(--panel);
+    border: 1px solid var(--frame);
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(30,50,80,0.25), inset 0 0 0 1px rgba(255,255,255,0.6);
+    overflow: hidden;
+  }
+  .titlebar {
+    background: linear-gradient(#5aa4ee, #1f6cc4 55%, #1a5aa8 60%, #2f7ed6);
+    color: #fff;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+    border-bottom: 1px solid #163e73;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .titlebar .dots { margin-left: auto; display: flex; gap: 4px; }
+  .titlebar .dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.35);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .dot.min { background: radial-gradient(circle at 30% 30%, #ffe066, #d4a300); }
+  .dot.max { background: radial-gradient(circle at 30% 30%, #7be27b, #1e8a1e); }
+  .dot.close { background: radial-gradient(circle at 30% 30%, #ff7b7b, #b31c1c); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--frame);
+    background:
+      linear-gradient(rgba(255,255,255,0.65), rgba(255,255,255,0.1) 48%, rgba(0,0,0,0.05) 52%, rgba(255,255,255,0.05)),
+      linear-gradient(#e8f1fb, #b4d3ee 50%, #6ea8dd 55%, #b4d3ee);
+    color: var(--aqua-deep);
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.7);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(30,50,80,0.25);
+    transition: transform 0.06s ease;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.chrome {
+    background:
+      linear-gradient(rgba(255,255,255,0.65), rgba(255,255,255,0.1) 48%, rgba(0,0,0,0.05) 52%, rgba(255,255,255,0.05)),
+      var(--chrome);
+    color: #333;
+  }
+  .btn.rainbow {
+    background:
+      linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.05) 50%, rgba(0,0,0,0.05) 51%, transparent),
+      linear-gradient(90deg, #ffee55, #ff55ff, #5555ff, #55ffff, #55ff55, #ffee55);
+    background-size: auto, 200% 100%;
+    animation: rainbowShift 6s linear infinite;
+    color: #222;
+  }
+  @keyframes rainbowShift { to { background-position: 0 0, -200% 0; } }
+
+  .bevel-title {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.85), -1px -1px 0 rgba(0,0,0,0.18);
+  }
+
+  /* ---------- Layout ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    margin: 14px;
+    height: 44px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    color: #1a3a5c;
+  }
+  .brand .swatches {
+    display: inline-grid;
+    grid-template-columns: repeat(3, 8px);
+    grid-template-rows: repeat(3, 8px);
+    gap: 1px;
+    padding: 3px;
+    background: #ffffff;
+    border: 1px solid var(--frame);
+    border-radius: 3px;
+  }
+  .brand .swatches i {
+    display: block; width: 8px; height: 8px;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid var(--panel-line);
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 8px;
+  }
+  .status-pill .dotstat {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #b5b5b5; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .status-pill.connected .dotstat { background: radial-gradient(circle at 30% 30%, #7be27b, #1e8a1e); }
+
+  .hero {
+    text-align: center;
+    padding: 12px 20px 22px;
+  }
+  .hero h1 {
+    font-size: 42px;
+    margin: 6px 0;
+    color: #123252;
+    text-shadow: 2px 2px 0 rgba(255,255,255,0.9), -1px -1px 0 rgba(0,0,0,0.18);
+  }
+  .hero p {
+    color: var(--muted);
+    margin: 0 0 14px;
+    font-size: 15px;
+  }
+  .preview-window {
+    width: 220px;
+    margin: 16px auto 0;
+  }
+  .preview-window .content {
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(8, 20px);
+    gap: 2px;
+    justify-content: center;
+    background: #ffffff;
+  }
+  .preview-window .content i {
+    display: block; width: 20px; height: 20px; border: 1px solid #dfe5ec;
+  }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 8px 16px 60px;
+  }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 8px 12px;
+    margin: 14px 0;
+  }
+  .controls .group { display: flex; gap: 6px; align-items: center; }
+  .controls .label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .toggle {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-line);
+    background: #ffffff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #3c4b60;
+  }
+  .toggle.active {
+    background:
+      linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.1) 50%, transparent 51%),
+      linear-gradient(#ffdd66, #ffb833);
+    border-color: #b58500;
+    color: #4a3200;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+
+  .canvas-window { margin: 0 auto; max-width: 1080px; }
+  .canvas-wrap {
+    padding: 14px;
+    background:
+      linear-gradient(#ffffff, #f2f6fb);
+    display: flex; justify-content: center;
+  }
+  #canvas-svg {
+    display: block;
+    background: #fbfcfe;
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
+    width: min(720px, 92vw);
+    height: min(720px, 92vw);
+  }
+  #canvas-svg rect.cell {
+    stroke: #dbe2ea;
+    stroke-width: 0.06;
+    cursor: pointer;
+    transition: transform 0.08s ease;
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+  #canvas-svg rect.cell:hover { transform: scale(1.6); stroke: #1a5aa8; stroke-width: 0.15; }
+  #canvas-svg rect.cell.sale { stroke: #ffcc33; stroke-width: 0.15; }
+  #canvas-svg rect.cell.mine { stroke: #ff55aa; stroke-width: 0.15; }
+  #canvas-svg rect.cell.dim { opacity: 0.25; }
+
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #ffffee;
+    border: 1px solid #7c828b;
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 12px;
+    color: #222;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.25);
+    display: none;
+    z-index: 9999;
+    max-width: 220px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 12px;
+    margin-top: 14px;
+  }
+  .stat {
+    background: #ffffff;
+    border: 1px solid var(--panel-line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat .v { font-size: 20px; font-weight: 700; color: #123252; text-shadow: 1px 1px 0 rgba(255,255,255,0.7); }
+
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend .swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--panel-line); margin-right: 4px; vertical-align: middle; }
+
+  /* Modal */
+  .modal-veil {
+    position: fixed; inset: 0;
+    background: rgba(20, 40, 70, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+  }
+  .modal-veil.show { display: flex; }
+  .modal {
+    width: min(440px, 92vw);
+  }
+  .modal .content { padding: 14px 16px; }
+  .modal .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  .modal label { font-size: 12px; color: var(--muted); min-width: 68px; }
+  .modal input[type="text"], .modal input[type="number"] {
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #7c828b;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .modal input[type="color"] {
+    width: 44px; height: 30px; padding: 0; border: 1px solid #7c828b; border-radius: 4px; background: #fff;
+  }
+  .modal .info {
+    background: #fffbe6;
+    border: 1px solid #e0c860;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: #5b4a00;
+    border-radius: 4px;
+  }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; }
+  .parcel-preview {
+    width: 40px; height: 40px; border: 1px solid #7c828b; border-radius: 3px;
+    background: #ffffff;
+  }
+
+  /* Empty state */
+  .empty {
+    padding: 26px; text-align: center; color: var(--muted); font-size: 13px;
+  }
+  .folder-icon { font-size: 40px; }
+
+  /* Toast */
+  .toasts {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+    max-width: 320px;
+  }
+  .toast {
+    padding: 10px 12px 10px 40px;
+    position: relative;
+    font-size: 12px;
+    color: #1a2530;
+    background:
+      linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.1) 50%, transparent 51%),
+      #ffffff;
+    border: 1px solid var(--frame);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(30,50,80,0.25);
+  }
+  .toast::before {
+    content: "i"; position: absolute; left: 10px; top: 50%;
+    transform: translateY(-50%);
+    width: 20px; height: 20px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #7bbfff, #1f6cc4);
+    color: #fff; font-weight: 700; font-family: serif;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  .toast.err::before { background: radial-gradient(circle at 30% 30%, #ff8080, #b02020); content: "!"; }
+  .toast.ok::before { background: radial-gradient(circle at 30% 30%, #7be27b, #1e8a1e); content: "\2713"; }
+
+  footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 28px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar chrome-bar">
+  <div class="brand bevel-title">
+    <span class="swatches" aria-hidden="true">
+      <i style="background:#ff5577"></i><i style="background:#ffcc33"></i><i style="background:#33cc66"></i>
+      <i style="background:#0080ff"></i><i style="background:#ffffff"></i><i style="background:#aa55dd"></i>
+      <i style="background:#ffee55"></i><i style="background:#55ddff"></i><i style="background:#333333"></i>
+    </span>
+    PixelParcel
+  </div>
+  <div style="display:flex; align-items:center;">
+    <span id="net-pill" class="status-pill"><span class="dotstat"></span><span id="net-label">Not connected</span></span>
+    <button id="btn-connect" class="btn">Connect Wallet</button>
+  </div>
+</div>
+
+<section class="hero">
+  <h1 class="bevel-title">Own a piece of the wall.</h1>
+  <p>A 50x50 shared canvas on BOT Chain. Claim a parcel, paint it, drop a note.</p>
+  <div class="preview-window chrome-window">
+    <div class="titlebar">
+      <span>Parcel Preview</span>
+      <span class="dots"><span class="dot min"></span><span class="dot max"></span><span class="dot close"></span></span>
+    </div>
+    <div class="content" id="hero-preview"></div>
+  </div>
+</section>
+
+<main>
+
+  <div class="controls chrome-bar">
+    <div class="group">
+      <span class="label">FILTER:</span>
+      <button class="toggle active" data-filter="all">ALL</button>
+      <button class="toggle" data-filter="mine">OWNED BY ME</button>
+      <button class="toggle" data-filter="sale">FOR SALE</button>
+    </div>
+    <div class="group" style="margin-left:auto;">
+      <button id="btn-refresh" class="btn chrome">Refresh</button>
+      <button id="btn-random" class="btn rainbow">Random Parcel</button>
+    </div>
+  </div>
+
+  <div class="canvas-window chrome-window">
+    <div class="titlebar">
+      <span>The Wall — 50 x 50</span>
+      <span class="dots"><span class="dot min"></span><span class="dot max"></span><span class="dot close"></span></span>
+    </div>
+    <div class="canvas-wrap">
+      <svg id="canvas-svg" viewBox="0 0 50 50" preserveAspectRatio="xMidYMid meet" aria-label="Pixel parcel canvas"></svg>
+    </div>
+    <div class="legend">
+      <span><span class="swatch" style="background:#f0f0f0"></span>Unclaimed</span>
+      <span><span class="swatch" style="background:#ffcc33"></span>For sale</span>
+      <span><span class="swatch" style="background:#ff55aa"></span>Owned by you</span>
+      <span style="margin-left:auto;">Hover a cell for details. Click to open.</span>
+    </div>
+  </div>
+
+  <div class="stats chrome-bar">
+    <div class="stat"><div class="k">Parcels Owned</div><div class="v"><span id="stat-owned">0</span> / 2500</div></div>
+    <div class="stat"><div class="k">Total Volume</div><div class="v"><span id="stat-volume">0</span> BOT</div></div>
+    <div class="stat"><div class="k">Your Parcels</div><div class="v" id="stat-yours">0</div></div>
+    <div class="stat"><div class="k">Base Price</div><div class="v"><span id="stat-price">0.005</span> BOT</div></div>
+  </div>
+
+  <div id="empty-state" class="empty" style="display:none;">
+    <div class="folder-icon">&#128193;</div>
+    <div>No parcels match this filter yet.</div>
+  </div>
+
+</main>
+
+<div id="tooltip" class="tooltip"></div>
+
+<!-- Parcel modal -->
+<div id="modal-veil" class="modal-veil">
+  <div class="modal chrome-window">
+    <div class="titlebar">
+      <span id="modal-title">Parcel #0</span>
+      <span class="dots">
+        <span class="dot min"></span><span class="dot max"></span>
+        <span class="dot close" id="modal-close" style="cursor:pointer;" title="Close"></span>
+      </span>
+    </div>
+    <div class="content">
+      <div class="row">
+        <div class="parcel-preview" id="modal-preview"></div>
+        <div style="flex:1; font-size:12px; color:var(--muted);">
+          <div>Owner: <span id="modal-owner">—</span></div>
+          <div>Status: <span id="modal-status">—</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <label for="color-input">Color</label>
+        <input type="color" id="color-input" value="#0080ff" />
+        <label for="msg-input" style="min-width:60px;">Message</label>
+        <input type="text" id="msg-input" maxlength="64" placeholder="up to 64 chars" />
+      </div>
+      <div class="row">
+        <label for="price-input">List price</label>
+        <input type="number" id="price-input" min="0" step="0.001" placeholder="BOT (0 to delist)" />
+      </div>
+      <div class="info" id="modal-info">Connect your wallet to interact.</div>
+      <div class="actions">
+        <button id="btn-claim" class="btn" style="display:none;">Claim</button>
+        <button id="btn-update" class="btn" style="display:none;">Save Changes</button>
+        <button id="btn-list" class="btn chrome" style="display:none;">Update Listing</button>
+        <button id="btn-buy" class="btn rainbow" style="display:none;">Buy Parcel</button>
+        <button id="btn-close" class="btn chrome">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+
+<footer>
+  PixelParcel &middot; BOT Chain &middot; <span id="foot-net">Testnet 968</span>
+</footer>
+
+<script>
+"use strict";
+
+// ==============================================================
+// CONFIG
+// ==============================================================
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const USE_MAINNET = false;
+
+const NETWORKS = {
+  testnet: {
+    chainIdHex: "0x3C8", chainIdDec: 968,
+    chainName: "BOT Chain Testnet",
+    rpcUrls: ["https://rpc.bohr.life"],
+    nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+    blockExplorerUrls: [],
+  },
+  mainnet: {
+    chainIdHex: "0x2A5", chainIdDec: 677,
+    chainName: "BOT Chain",
+    rpcUrls: ["https://rpc.botchain.ai"],
+    nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+    blockExplorerUrls: [],
+  },
+};
+const ACTIVE_NET = USE_MAINNET ? NETWORKS.mainnet : NETWORKS.testnet;
+
+const ABI = [
+  "function GRID_SIZE() view returns (uint16)",
+  "function TOTAL_PARCELS() view returns (uint16)",
+  "function parcelBasePrice() view returns (uint256)",
+  "function platformFeeBps() view returns (uint16)",
+  "function parcelsSold() view returns (uint256)",
+  "function totalVolume() view returns (uint256)",
+  "function getParcel(uint16) view returns (address,uint24,string,uint256)",
+  "function getParcels(uint16[]) view returns (address[],uint24[],uint256[])",
+  "function getOwnedParcels(address) view returns (uint16[])",
+  "function claimParcel(uint16,uint24,string) payable",
+  "function updateParcel(uint16,uint24,string)",
+  "function listForSale(uint16,uint256)",
+  "function buyParcel(uint16) payable",
+  "event ParcelClaimed(uint16 indexed parcelId, address indexed owner, uint24 color, string message)",
+  "event ParcelUpdated(uint16 indexed parcelId, address indexed owner, uint24 color, string message)",
+  "event ParcelListed(uint16 indexed parcelId, address indexed owner, uint256 price)",
+  "event ParcelSold(uint16 indexed parcelId, address indexed from, address indexed to, uint256 price)",
+];
+
+const GRID = 50;
+const TOTAL = 2500;
+const BATCH = 200;
+
+// ==============================================================
+// STATE
+// ==============================================================
+let provider = null;
+let signer = null;
+let account = null;
+let contractRead = null;
+let contractWrite = null;
+let parcels = new Array(TOTAL).fill(null); // {owner,color,price}
+let basePrice = 5000000000000000n; // 0.005
+let feeBps = 250;
+let filter = "all";
+let selectedId = null;
+
+// ==============================================================
+// UTIL
+// ==============================================================
+function $(id) { return document.getElementById(id); }
+function short(a) { if (!a) return "—"; return a.slice(0, 6) + "…" + a.slice(-4); }
+function isZero(a) { return !a || a === ethers.ZeroAddress; }
+function colorHex(c) { return "#" + Number(c).toString(16).padStart(6, "0"); }
+function hexToInt(h) { return parseInt(h.replace("#",""), 16); }
+function fmtBot(v) {
+  try { return ethers.formatEther(v); } catch { return "0"; }
+}
+function toast(msg, kind) {
+  const box = $("toasts");
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity 0.4s"; }, 3400);
+  setTimeout(() => { el.remove(); }, 3900);
+}
+
+// ==============================================================
+// PREVIEW STRIP
+// ==============================================================
+(function paintHeroPreview() {
+  const p = $("hero-preview");
+  const palette = ["#ff5577","#ffcc33","#33cc66","#0080ff","#aa55dd","#55ddff","#ffee55","#ffffff","#333333","#ff8800","#22aabb","#f2f2f2","#c04ac0","#66ccff","#88dd44","#ffaa77"];
+  for (let i = 0; i < 32; i++) {
+    const cell = document.createElement("i");
+    cell.style.background = palette[Math.floor(Math.random() * palette.length)];
+    p.appendChild(cell);
+  }
+})();
+
+// ==============================================================
+// WALLET
+// ==============================================================
+async function connectWallet() {
+  if (!window.ethereum) {
+    toast("MetaMask not detected. Install it and reload.", "err");
+    return;
+  }
+  try {
+    await ensureNetwork();
+    provider = new ethers.BrowserProvider(window.ethereum);
+    const accs = await provider.send("eth_requestAccounts", []);
+    account = accs[0];
+    signer = await provider.getSigner();
+    contractWrite = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+    contractRead = contractWrite; // signer's provider works for reads too
+    $("btn-connect").textContent = short(account);
+    $("net-pill").classList.add("connected");
+    $("net-label").textContent = ACTIVE_NET.chainName;
+    toast("Wallet connected.", "ok");
+    await refreshAll();
+    window.ethereum.on("accountsChanged", () => window.location.reload());
+    window.ethereum.on("chainChanged", () => window.location.reload());
+  } catch (err) {
+    console.error(err);
+    toast("Connect failed: " + (err.shortMessage || err.message || err), "err");
+  }
+}
+
+async function ensureNetwork() {
+  const currentHex = await window.ethereum.request({ method: "eth_chainId" });
+  if (currentHex.toLowerCase() === ACTIVE_NET.chainIdHex.toLowerCase()) return;
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ACTIVE_NET.chainIdHex }],
+    });
+  } catch (err) {
+    if (err.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: ACTIVE_NET.chainIdHex,
+          chainName: ACTIVE_NET.chainName,
+          rpcUrls: ACTIVE_NET.rpcUrls,
+          nativeCurrency: ACTIVE_NET.nativeCurrency,
+          blockExplorerUrls: ACTIVE_NET.blockExplorerUrls,
+        }],
+      });
+    } else {
+      throw err;
+    }
+  }
+}
+
+function getReadContract() {
+  if (contractRead) return contractRead;
+  const rpc = new ethers.JsonRpcProvider(ACTIVE_NET.rpcUrls[0]);
+  contractRead = new ethers.Contract(CONTRACT_ADDRESS, ABI, rpc);
+  return contractRead;
+}
+
+// ==============================================================
+// CANVAS
+// ==============================================================
+function buildCanvas() {
+  const svg = $("canvas-svg");
+  svg.innerHTML = "";
+  const ns = "http://www.w3.org/2000/svg";
+  for (let i = 0; i < TOTAL; i++) {
+    const x = i % GRID;
+    const y = Math.floor(i / GRID);
+    const r = document.createElementNS(ns, "rect");
+    r.setAttribute("x", x);
+    r.setAttribute("y", y);
+    r.setAttribute("width", 1);
+    r.setAttribute("height", 1);
+    r.setAttribute("fill", "#f0f0f0");
+    r.setAttribute("class", "cell");
+    r.dataset.id = i;
+    r.addEventListener("click", () => openModal(i));
+    r.addEventListener("mousemove", (ev) => showTooltip(i, ev));
+    r.addEventListener("mouseleave", hideTooltip);
+    svg.appendChild(r);
+  }
+}
+
+function paintCell(id) {
+  const svg = $("canvas-svg");
+  const rect = svg.querySelector(`rect[data-id="${id}"]`);
+  if (!rect) return;
+  const p = parcels[id];
+  const cls = ["cell"];
+  let fill = "#f0f0f0";
+  let hide = false;
+  if (p && !isZero(p.owner)) {
+    fill = colorHex(p.color);
+    if (p.price > 0n) cls.push("sale");
+    if (account && p.owner.toLowerCase() === account.toLowerCase()) cls.push("mine");
+  }
+  if (filter === "mine") {
+    if (!(p && account && p.owner && p.owner.toLowerCase() === account.toLowerCase())) hide = true;
+  } else if (filter === "sale") {
+    if (!(p && p.price > 0n)) hide = true;
+  }
+  if (hide) cls.push("dim");
+  rect.setAttribute("fill", fill);
+  rect.setAttribute("class", cls.join(" "));
+}
+
+function paintAll() {
+  for (let i = 0; i < TOTAL; i++) paintCell(i);
+  updateEmptyState();
+}
+
+function updateEmptyState() {
+  const anyVisible = parcels.some((p, i) => {
+    if (filter === "all") return true;
+    if (!p) return false;
+    if (filter === "mine") return account && p.owner && p.owner.toLowerCase() === account.toLowerCase();
+    if (filter === "sale") return p.price > 0n;
+    return true;
+  });
+  $("empty-state").style.display = anyVisible ? "none" : "block";
+}
+
+// ==============================================================
+// TOOLTIP
+// ==============================================================
+function showTooltip(id, ev) {
+  const t = $("tooltip");
+  const p = parcels[id];
+  const x = id % GRID, y = Math.floor(id / GRID);
+  let lines = [`#${id}  (${x}, ${y})`];
+  if (p && !isZero(p.owner)) {
+    lines.push("Owner: " + short(p.owner));
+    if (p.price > 0n) lines.push("For sale: " + fmtBot(p.price) + " BOT");
+    else lines.push("Not for sale");
+  } else {
+    lines.push("Unclaimed — " + fmtBot(basePrice) + " BOT");
+  }
+  t.innerHTML = lines.map(l => `<div>${l}</div>`).join("");
+  t.style.display = "block";
+  t.style.left = (ev.clientX + 14) + "px";
+  t.style.top = (ev.clientY + 14) + "px";
+}
+function hideTooltip() { $("tooltip").style.display = "none"; }
+
+// ==============================================================
+// MODAL
+// ==============================================================
+async function openModal(id) {
+  selectedId = id;
+  const p = parcels[id];
+  $("modal-title").textContent = "Parcel #" + id;
+  $("modal-veil").classList.add("show");
+  $("modal-preview").style.background = (p && !isZero(p.owner)) ? colorHex(p.color) : "#ffffff";
+
+  const claimed = p && !isZero(p.owner);
+  const mine = claimed && account && p.owner.toLowerCase() === account.toLowerCase();
+  const forSale = claimed && p.price > 0n;
+
+  $("modal-owner").textContent = claimed ? short(p.owner) : "Unclaimed";
+  $("modal-status").textContent = claimed
+    ? (forSale ? ("Listed for " + fmtBot(p.price) + " BOT") : "Owned")
+    : "Available for " + fmtBot(basePrice) + " BOT";
+
+  // Load latest message
+  let msg = "";
+  try {
+    const parcel = await getReadContract().getParcel(id);
+    msg = parcel[2] || "";
+    if (claimed) {
+      $("color-input").value = colorHex(parcel[1]);
+    } else {
+      $("color-input").value = "#0080ff";
+    }
+  } catch (err) {
+    console.warn("getParcel failed", err);
+  }
+  $("msg-input").value = msg;
+  $("price-input").value = forSale ? fmtBot(p.price) : "";
+
+  $("btn-claim").style.display = (!claimed && account) ? "" : "none";
+  $("btn-update").style.display = mine ? "" : "none";
+  $("btn-list").style.display = mine ? "" : "none";
+  $("btn-buy").style.display = (forSale && account && !mine) ? "" : "none";
+
+  if (!account) {
+    $("modal-info").textContent = "Connect your wallet to interact with parcels.";
+  } else if (!claimed) {
+    $("modal-info").textContent = "Pay " + fmtBot(basePrice) + " BOT to claim this parcel.";
+  } else if (mine) {
+    $("modal-info").textContent = "You own this parcel. Update it, or list it for sale (set price to 0 to delist).";
+  } else if (forSale) {
+    $("modal-info").textContent = "Buy at " + fmtBot(p.price) + " BOT. Seller receives " +
+      fmtBot((p.price * BigInt(10000 - feeBps)) / 10000n) + " BOT (" + (feeBps/100).toFixed(2) + "% platform fee).";
+  } else {
+    $("modal-info").textContent = "This parcel is not for sale.";
+  }
+}
+function closeModal() { $("modal-veil").classList.remove("show"); selectedId = null; }
+
+// ==============================================================
+// ACTIONS
+// ==============================================================
+async function withTx(label, fn) {
+  try {
+    toast(label + "…");
+    const tx = await fn();
+    toast("Tx submitted. Waiting for confirmation…");
+    await tx.wait();
+    toast(label + " confirmed.", "ok");
+    return true;
+  } catch (err) {
+    console.error(err);
+    const reason = err.shortMessage || err.reason || err.message || String(err);
+    toast(label + " failed: " + reason, "err");
+    return false;
+  }
+}
+
+async function doClaim() {
+  if (selectedId === null || !contractWrite) return;
+  const color = hexToInt($("color-input").value);
+  const message = $("msg-input").value;
+  if (message.length > 64) { toast("Message max 64 chars.", "err"); return; }
+  const ok = await withTx("Claim parcel #" + selectedId, () =>
+    contractWrite.claimParcel(selectedId, color, message, { value: basePrice })
+  );
+  if (ok) { closeModal(); await refreshAll(); }
+}
+
+async function doUpdate() {
+  if (selectedId === null || !contractWrite) return;
+  const color = hexToInt($("color-input").value);
+  const message = $("msg-input").value;
+  const ok = await withTx("Update parcel #" + selectedId, () =>
+    contractWrite.updateParcel(selectedId, color, message)
+  );
+  if (ok) { closeModal(); await refreshRange(selectedId); }
+}
+
+async function doList() {
+  if (selectedId === null || !contractWrite) return;
+  const val = $("price-input").value.trim();
+  if (val === "") { toast("Enter a price (0 to delist).", "err"); return; }
+  let priceWei;
+  try { priceWei = ethers.parseEther(val); } catch { toast("Invalid price.", "err"); return; }
+  const ok = await withTx("List parcel #" + selectedId, () =>
+    contractWrite.listForSale(selectedId, priceWei)
+  );
+  if (ok) { closeModal(); await refreshRange(selectedId); }
+}
+
+async function doBuy() {
+  if (selectedId === null || !contractWrite) return;
+  const p = parcels[selectedId];
+  if (!p || p.price === 0n) return;
+  const ok = await withTx("Buy parcel #" + selectedId, () =>
+    contractWrite.buyParcel(selectedId, { value: p.price })
+  );
+  if (ok) { closeModal(); await refreshAll(); }
+}
+
+// ==============================================================
+// LOAD
+// ==============================================================
+async function loadGrid() {
+  const c = getReadContract();
+  for (let start = 0; start < TOTAL; start += BATCH) {
+    const ids = [];
+    for (let i = start; i < Math.min(start + BATCH, TOTAL); i++) ids.push(i);
+    try {
+      const [owners, colors, prices] = await c.getParcels(ids);
+      for (let j = 0; j < ids.length; j++) {
+        parcels[ids[j]] = { owner: owners[j], color: colors[j], price: prices[j] };
+      }
+      // paint incrementally so users see progress
+      for (let j = 0; j < ids.length; j++) paintCell(ids[j]);
+    } catch (err) {
+      console.error("batch failed", start, err);
+    }
+  }
+  updateEmptyState();
+}
+
+async function refreshRange(id) {
+  try {
+    const c = getReadContract();
+    const [owners, colors, prices] = await c.getParcels([id]);
+    parcels[id] = { owner: owners[0], color: colors[0], price: prices[0] };
+    paintCell(id);
+    await refreshStats();
+  } catch (err) { console.error(err); }
+}
+
+async function refreshStats() {
+  try {
+    const c = getReadContract();
+    const [sold, vol, bp, bps] = await Promise.all([
+      c.parcelsSold(), c.totalVolume(), c.parcelBasePrice(), c.platformFeeBps(),
+    ]);
+    basePrice = bp;
+    feeBps = Number(bps);
+    $("stat-owned").textContent = sold.toString();
+    $("stat-volume").textContent = fmtBot(vol);
+    $("stat-price").textContent = fmtBot(bp);
+    if (account) {
+      const owned = await c.getOwnedParcels(account);
+      $("stat-yours").textContent = owned.length.toString();
+    } else {
+      $("stat-yours").textContent = "0";
+    }
+  } catch (err) {
+    console.warn("stats fetch failed", err);
+  }
+}
+
+async function refreshAll() {
+  if (CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") {
+    toast("Set CONTRACT_ADDRESS in index.html to load parcels.", "err");
+    return;
+  }
+  await Promise.all([refreshStats(), loadGrid()]);
+}
+
+// ==============================================================
+// WIRE-UP
+// ==============================================================
+function bindUI() {
+  $("btn-connect").addEventListener("click", connectWallet);
+  $("btn-refresh").addEventListener("click", refreshAll);
+  $("btn-random").addEventListener("click", () => {
+    const id = Math.floor(Math.random() * TOTAL);
+    openModal(id);
+  });
+  document.querySelectorAll(".toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".toggle").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      filter = btn.dataset.filter;
+      paintAll();
+    });
+  });
+  $("modal-close").addEventListener("click", closeModal);
+  $("btn-close").addEventListener("click", closeModal);
+  $("modal-veil").addEventListener("click", (e) => { if (e.target.id === "modal-veil") closeModal(); });
+  $("btn-claim").addEventListener("click", doClaim);
+  $("btn-update").addEventListener("click", doUpdate);
+  $("btn-list").addEventListener("click", doList);
+  $("btn-buy").addEventListener("click", doBuy);
+  $("foot-net").textContent = USE_MAINNET ? "Mainnet 677" : "Testnet 968";
+}
+
+async function init() {
+  buildCanvas();
+  bindUI();
+  try {
+    await refreshAll();
+  } catch (err) {
+    console.warn("initial load failed", err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
